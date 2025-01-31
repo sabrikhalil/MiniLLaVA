@@ -1,0 +1,21 @@
+# Python caches
+__pycache__/
+*.pyc
+
+# Virtual environment folder (adjust if your environment folder name is different)
+venv/
+# If using Conda, you can also ignore environments if you keep them in the project folder:
+# env/
+
+# Jupyter Notebook checkpoints
+.ipynb_checkpoints/
+
+# Data files (avoid pushing large datasets)
+data/
+
+# Experiment outputs and logs
+experiments/
+
+# OS-specific files
+.DS_Store
+Thumbs.db
