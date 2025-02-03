@@ -16,19 +16,30 @@ class VisionEncoder(nn.Module):
     def forward(self, image_input):
         """
         Accepts image_input as either:
-          - a tensor (shape [3, 224, 224]) from our dataset loader,
+          - a tensor (shape [3, 224, 224]) or a batch of images (shape [B, 3, 224, 224]),
           - a filepath, or a PIL Image.
-        If a tensor is given, it is converted back to a PIL image.
+        Converts to PIL image(s) if necessary and returns image features.
         """
+        # If input is a torch.Tensor, check its dimensions.
         if isinstance(image_input, torch.Tensor):
-            to_pil = transforms.ToPILImage()
-            image = to_pil(image_input)
+            # If it's a batch of images (4D), convert each image separately.
+            if image_input.ndim == 4:
+                to_pil = transforms.ToPILImage()
+                images = [to_pil(img.cpu()) for img in image_input]
+            elif image_input.ndim == 3:
+                to_pil = transforms.ToPILImage()
+                images = to_pil(image_input.cpu())
+            else:
+                raise ValueError(f"Expected tensor with 3 or 4 dimensions, got {image_input.ndim} dimensions.")
         elif isinstance(image_input, str):
-            image = Image.open(image_input).convert("RGB")
+            # If a file path is provided, open the image.
+            images = Image.open(image_input).convert("RGB")
         else:
-            image = image_input.convert("RGB")
+            # Assume input is a PIL Image or list of PIL Images.
+            images = image_input
         
-        inputs = self.processor(images=image, return_tensors="pt")
+        # Use the CLIP processor. The processor accepts a single PIL image or a list of them.
+        inputs = self.processor(images=images, return_tensors="pt")
         inputs = {k: v.to(self.device) for k, v in inputs.items()}
         with torch.no_grad():
             image_features = self.clip_model.get_image_features(**inputs)

@@ -1,5 +1,3 @@
-# src/models/vlm.py
-
 import torch
 import torch.nn as nn
 from src.models.vision_encoder import VisionEncoder
@@ -10,36 +8,24 @@ class MiniLLaVA(nn.Module):
         super(MiniLLaVA, self).__init__()
         self.device = device
         
-        # Initialize the vision and text encoders
+        # Initialize the vision and text encoders.
         self.vision_encoder = VisionEncoder(device=device)
         self.text_encoder = TextEncoder(device=device)
         
-        # Assume VisionEncoder outputs 512-dimensional embeddings and TextEncoder outputs 768-dimensional embeddings.
-        # Create a projection layer to map vision embeddings into the text embedding space.
-        self.projection = nn.Linear(512, 768).to(self.device)
+        # Obtain the hidden size from the text encoder's configuration.
+        # This ensures that our projection layer will output the correct dimension.
+        text_hidden_dim = self.text_encoder.model.config.hidden_size  # Expected to be 2048 for microsoft/phi-1_5
         
-    def forward(self, image_path: str, text: str):
-        # Get image embeddings from the vision encoder
-        image_emb = self.vision_encoder.forward(image_path)
-        # Project image embeddings to match text embedding dimension
+        # Create a projection layer to map vision embeddings (512) into the text embedding space (text_hidden_dim).
+        self.projection = nn.Linear(512, text_hidden_dim).to(self.device)
+        
+    def forward(self, image, text):
+        # This forward method is not used directly in generative training.
+        # Instead, the training script uses the vision_encoder, projection, and text_encoder separately.
+        image_emb = self.vision_encoder.forward(image)
         projected_image_emb = self.projection(image_emb)
-        
-        # Get text embeddings from the text encoder
-        text_emb = self.text_encoder.forward(text)
-        
-        return projected_image_emb, text_emb
-    
-    def compute_similarity(self, image_path: str, text: str):
-        """
-        Computes cosine similarity between projected image embeddings and text embeddings.
-        """
-        proj_image_emb, text_emb = self.forward(image_path, text)
-        # Normalize embeddings
-        proj_image_norm = proj_image_emb / proj_image_emb.norm(dim=1, keepdim=True)
-        text_norm = text_emb / text_emb.norm(dim=1, keepdim=True)
-        # Compute cosine similarity
-        cosine_sim = torch.mm(proj_image_norm, text_norm.transpose(0, 1))
-        return cosine_sim
+        text_logits = self.text_encoder.forward(text, prefix_embeds=projected_image_emb.unsqueeze(1))
+        return text_logits
 
 if __name__ == "__main__":
     import sys
@@ -47,7 +33,8 @@ if __name__ == "__main__":
         image_path = sys.argv[1]
         text_input = " ".join(sys.argv[2:])
         model = MiniLLaVA()
-        similarity = model.compute_similarity(image_path, text_input)
-        print("Cosine Similarity:", similarity.item())
+        # In inference mode, you can generate logits or use the generative model’s generate method.
+        logits = model.text_encoder.forward(text_input)
+        print("Logits Shape:", logits.shape)
     else:
         print("Usage: python src/models/vlm.py <image_path> <text>")
