@@ -29,4 +29,5 @@ MiniLLaVA is a minimal Vision-Language Model prototype inspired by LLaVA. It int
    python src/data/download_dataset.py
 4. **Start training:**
    ```bash
-     python src/training/train.py
+     python src/training/train_projector.py  -- Train first the projector, freeze both LLM and Vision Encoder
+     python src/training/train.py            -- Train after both projector and LLM (using Lora tuning)
