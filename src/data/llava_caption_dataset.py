@@ -4,6 +4,18 @@ from torch.utils.data import Dataset
 from torchvision import transforms
 from PIL import Image
 
+def ensure_dataset_downloaded(json_file, images_dir):
+    if not os.path.exists(json_file):
+        print(f"{os.path.basename(json_file)} not found. Downloading dataset...")
+        from src.data import download_dataset  # Import the download helper.
+        # Define the URL for the JSON file and the base URL for images.
+        json_url = "https://huggingface.co/datasets/liuhaotian/LLaVA-Instruct-150K/resolve/main/llava_instruct_150k.json"
+        base_url = "http://images.cocodataset.org/train2017/"
+        download_dataset.download_dataset(json_url, json_file, images_dir, base_url, num_threads=16)
+    else:
+        print(f"{os.path.basename(json_file)} already exists, skipping JSON download.")
+    # Optionally, you could also check if images_dir is nonempty.
+
 class LLaVACaptionDataset(Dataset):
     def __init__(self, json_file, img_dir, split="train", max_samples=None, transform=None):
         """
@@ -20,7 +32,8 @@ class LLaVACaptionDataset(Dataset):
                 Defaults to resizing to 224x224 and converting to a tensor.
         """
         self.img_dir = img_dir
-
+        ensure_dataset_downloaded(json_file, img_dir)
+        
         # Load JSON file as a Hugging Face dataset.
         dataset = load_dataset("json", data_files=json_file, split=split)
         if max_samples is not None:
@@ -32,15 +45,12 @@ class LLaVACaptionDataset(Dataset):
             if isinstance(path, str) and path.strip():
                 example["image"] = os.path.join(img_dir, path.strip())
             return example
-
         dataset = dataset.map(update_image_path)
         
         # Filter out examples where the image file does not exist.
         def has_image(example):
             path = example.get("image")
             return path is not None and os.path.exists(path)
-        
-        print("Filtering dataset to keep only examples with existing images...")
         dataset = dataset.filter(has_image)
         
         # Build training samples:
@@ -75,7 +85,7 @@ class LLaVACaptionDataset(Dataset):
     def __getitem__(self, idx):
         sample = self.samples[idx]
         img_field = sample["image"]
-        # If img_field is a string, open it; if it's already an Image, use it directly.
+        # Open image from file path.
         if isinstance(img_field, str):
             try:
                 image = Image.open(img_field).convert("RGB")
@@ -89,19 +99,21 @@ class LLaVACaptionDataset(Dataset):
             image = self.transform(image)
         user_prompt = sample["user_prompt"]
         assistant_answer = sample["assistant_answer"]
-        # Return a tuple: (image, user_prompt, assistant_answer)
-        return image, user_prompt, assistant_answer
+        # Return a 4-tuple: (image tensor, user_prompt, assistant_answer, image path)
+        return image, user_prompt, assistant_answer, sample["image"]
 
 if __name__ == "__main__":
     # Update these paths to your local environment.
-    json_file = "src/data/LLaVA_Instruct_Files/llava_instruct_150k.json"
-    img_dir = "src/data/LLaVA_Instruct_Files/images"
+    json_file = os.path.join("src", "data", "LLaVA_Instruct_Files", "llava_instruct_150k.json")
+    img_dir = os.path.join("src", "data", "LLaVA_Instruct_Files", "images")
     
     dataset = LLaVACaptionDataset(json_file, img_dir, split="train", max_samples=500)
     print(f"Total training samples: {len(dataset)}")
+    # Test the dataset: Print only the first 5 samples with image path info.
     for idx in range(min(len(dataset), 5)):
-        img, user_prompt, assistant_answer = dataset[idx]
-        print(f"Sample {idx}:")
+        img, user_prompt, assistant_answer, image_path = dataset[idx]
+        print(f"\nSample {idx}:")
         print("User Prompt:", user_prompt)
         print("Assistant Answer:", assistant_answer)
+        print("Image Path:", image_path)
         print("Image tensor shape:", img.shape)

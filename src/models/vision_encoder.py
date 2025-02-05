@@ -12,17 +12,23 @@ class VisionEncoder(nn.Module):
         self.processor = CLIPProcessor.from_pretrained(model_name)
         self.clip_model.to(self.device)
         self.clip_model.eval()
+        self.output_dim = 768
     
     def forward(self, image_input):
         """
         Accepts image_input as either:
           - a tensor (shape [3, 224, 224]) or a batch of images (shape [B, 3, 224, 224]),
           - a filepath, or a PIL Image.
-        Converts to PIL image(s) if necessary and returns image features.
+        Converts to PIL image(s) if necessary and returns patch tokens.
+
+        Returns:
+            patch_embeddings (torch.Tensor): A tensor of shape (B, n_patches, embed_dim) where:
+                - B is the batch size.
+                - n_patches is the number of image patches (typically, the total tokens minus one for the CLS token).
+                - embed_dim is the CLIP vision model embedding dimension.
         """
-        # If input is a torch.Tensor, check its dimensions.
+        # Convert input to PIL image(s) if needed.
         if isinstance(image_input, torch.Tensor):
-            # If it's a batch of images (4D), convert each image separately.
             if image_input.ndim == 4:
                 to_pil = transforms.ToPILImage()
                 images = [to_pil(img.cpu()) for img in image_input]
@@ -32,18 +38,24 @@ class VisionEncoder(nn.Module):
             else:
                 raise ValueError(f"Expected tensor with 3 or 4 dimensions, got {image_input.ndim} dimensions.")
         elif isinstance(image_input, str):
-            # If a file path is provided, open the image.
             images = Image.open(image_input).convert("RGB")
         else:
-            # Assume input is a PIL Image or list of PIL Images.
-            images = image_input
+            images = image_input  # Assume it's a PIL Image or list thereof.
         
-        # Use the CLIP processor. The processor accepts a single PIL image or a list of them.
+        # Process the image(s) to get model inputs.
         inputs = self.processor(images=images, return_tensors="pt")
         inputs = {k: v.to(self.device) for k, v in inputs.items()}
+        
+        # Forward pass through the vision model to get hidden states.
+        # We set output_hidden_states=True to obtain all token embeddings.
         with torch.no_grad():
-            image_features = self.clip_model.get_image_features(**inputs)
-        return image_features
+            outputs = self.clip_model.vision_model(**inputs, output_hidden_states=True)
+            # outputs.hidden_states[-1] is of shape (B, num_tokens, embed_dim).
+            # Typically, the first token is the CLS token, so we remove it to obtain only patch tokens.
+            patch_embeddings = outputs.hidden_states[-1][:, 0:, :] ## no need to discard the CLS token
+
+
+        return patch_embeddings
 
 if __name__ == "__main__":
     import sys

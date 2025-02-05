@@ -1,4 +1,4 @@
-import os
+mport os
 import random
 import torch
 import torch.optim as optim
@@ -8,7 +8,7 @@ import wandb
 # Import LoRA functions from PEFT.
 from peft import get_peft_model, LoraConfig
 
-# Reuse the LLaVACaptionDataset (which now returns a 4-tuple: (image, user_prompt, assistant_answer, image_path)).
+# Reuse the LLaVACaptionDataset (returns (image, user_prompt, assistant_answer)).
 from src.data.llava_caption_dataset import LLaVACaptionDataset
 from src.models.vlm import MiniLLaVA  # MiniLLaVA includes vision encoder, LLM, and projection layer.
 
@@ -27,14 +27,14 @@ def get_train_val_datasets(train_ratio=0.9, max_samples=10000, json_file=None, i
 def validate(model, val_loader, tokenizer, epoch, iteration, device, max_length):
     """
     For validation, use the full text prompt (i.e. only the user query with "assistant:" appended)
-    and let the model generate a continuation. Also print the image name (path) for reference.
+    and let the model generate a continuation.
     """
     model.llm.model.eval()
     print(f"\n[Validation @ epoch {epoch}, iteration {iteration}]")
     for batch in val_loader:
-        # Batch returns (image, user_prompt, assistant_answer, image_path)
-        if len(batch) >= 4:
-            images, prompts, answers, image_paths = batch[:4]
+        if len(batch) >= 3:
+            # Batch: (image, user_prompt, assistant_answer, *optional)
+            _, prompts, answers = batch[:3]
         else:
             continue
         for i in range(min(5, len(prompts))):
@@ -51,12 +51,10 @@ def validate(model, val_loader, tokenizer, epoch, iteration, device, max_length)
             print("Input Text:", input_text)
             print("Ground Truth Assistant Answer:", answers[i].strip())
             print("Generated Assistant Answer:", generated_text)
-            print("Image Name:", os.path.basename(image_paths[i]))  # Print just the file name.
             wandb.log({
                 "val_prompt": input_text,
                 "val_ground_truth": answers[i].strip(),
                 "val_generated": generated_text,
-                "image_name": os.path.basename(image_paths[i]),
                 "epoch": epoch,
                 "iteration": iteration,
             })
@@ -75,10 +73,10 @@ def train_llm():
         entity="khalil-sabri01",
         config={
             "learning_rate": 1e-4,
-            "batch_size": 4,
+            "batch_size": 4,  # Use batch size 1 for detailed debugging.
             "epochs": 3,
             "max_length": max_length,
-            "description": "LM finetuning on Q&A (including visual prefix for projector training) using LoRA for standard next-token prediction.",
+            "description": "LM finetuning on Q&A (ignoring visuals) using LoRA for standard next-token prediction.",
         }
     )
     config = wandb.config
@@ -86,22 +84,16 @@ def train_llm():
     torch.cuda.empty_cache()
 
     # Initialize the integrated model.
-    # Here, visuals are used (so the prefix branch is active).
+    # For LM-only finetuning, visuals are ignored.
     model = MiniLLaVA(device=device)
     model.to(device)
     model.train()
 
-    # Freeze the vision encoder (we want to update the projection layer).
+    # Freeze the vision encoder and projection layer.
     for param in model.vision_encoder.parameters():
         param.requires_grad = False
-
-    # LOAD PRE-TRAINED PROJECTOR
-    pretrained_projector_path = "saved_models/projector_iter_116800_epoch12.pth"
-    if os.path.exists(pretrained_projector_path):
-        print(f"Loading pre-trained projector from {pretrained_projector_path}")
-        model.projection.load_state_dict(torch.load(pretrained_projector_path, map_location=device))
-    else:
-        print("Pre-trained projector not found. Proceeding without loading.")
+    for param in model.projection.parameters():
+        param.requires_grad = False
 
     # Inject LoRA adapters into the LM's query, key, and value projections.
     lora_config = LoraConfig(
@@ -115,15 +107,12 @@ def train_llm():
     model.llm.model = get_peft_model(model.llm.model, lora_config)
     model.llm.model.print_trainable_parameters()
 
-    # Fine-tune both the LM (i.e. the LoRA parameters) and the projector.
-    optimizer = optim.AdamW(
-        list(model.llm.model.parameters()) + list(model.projection.parameters()),
-        lr=config.learning_rate
-    )
+    # Fine-tune only the LM (i.e. the LoRA parameters).
+    optimizer = optim.AdamW(model.llm.model.parameters(), lr=config.learning_rate)
 
     # Get training and validation splits.
     json_file = "src/data/LLaVA_Instruct_Files/llava_instruct_150k.json"
-    img_dir = "src/data/LLaVA_Instruct_Files/images"  # Visuals are now used.
+    img_dir = "src/data/LLaVA_Instruct_Files/images"  # Ignored for LM-only finetuning.
     train_ds, val_ds = get_train_val_datasets(train_ratio=0.9, max_samples=10000,
                                                json_file=json_file, img_dir=img_dir)
     train_loader = DataLoader(train_ds, batch_size=config.batch_size, shuffle=True)
@@ -138,14 +127,13 @@ def train_llm():
         epoch_loss = 0.0
         print(f"\n=== Starting Epoch {epoch+1}/{config.epochs} ===")
         for batch in train_loader:
-            # Each batch returns (image, user_prompt, assistant_answer, image_path).
-            images, prompts, answers, _ = batch[:4]
-            # Use the visual features.
-            prefix_embeds = model.projection(model.vision_encoder.forward(images))
+            # Each batch returns (image, user_prompt, assistant_answer); visuals are ignored here.
+            _, prompts, answers = batch[:3]
             # Construct the full text for next-token prediction.
+            # Format: "user: <prompt>\nassistant: <answer>"
             texts = [f"user: {p.strip()}\nassistant: {a.strip()}" for p, a in zip(prompts, answers)]
-            # Forward pass using the LLM forward method with visual prefix.
-            outputs = model.llm(texts, prefix_embeds=prefix_embeds, max_length=max_length)
+            # Forward pass using the new LLM forward method.
+            outputs = model.llm(texts, prefix_embeds=None, max_length=max_length)
             loss = outputs.loss
             optimizer.zero_grad()
             loss.backward()
@@ -156,23 +144,17 @@ def train_llm():
             wandb.log({"train_loss": loss.item()})
             print(f"Iteration {iteration}, Batch Loss: {loss.item():.4f}")
 
-            # Every 100 iterations, run validation and update the checkpoint for this epoch.
             if iteration % 100 == 0:
                 validate(model, val_loader, tokenizer, epoch, iteration, device, max_length)
-                # Save/overwrite the checkpoint for the current epoch.
-                iter_save_path = os.path.join("saved_models", f"llm_epoch{epoch+1}_iter.pth")
-                torch.save(model.llm.state_dict(), iter_save_path)
-                print(f"Updated checkpoint at iteration {iteration} for epoch {epoch+1} saved to {iter_save_path}")
             iteration += 1
 
         avg_epoch_loss = epoch_loss / len(train_loader)
         print(f"Epoch {epoch+1} complete. Avg Epoch Loss: {avg_epoch_loss:.4f}")
         wandb.log({"epoch": epoch+1, "epoch_loss": avg_epoch_loss})
-        # Save checkpoint at the end of the epoch.
-        epoch_save_path = os.path.join("saved_models", f"llm_epoch{epoch+1}.pth")
+        save_path = os.path.join("saved_models", f"llm_epoch{epoch+1}.pth")
         os.makedirs("saved_models", exist_ok=True)
-        torch.save(model.llm.state_dict(), epoch_save_path)
-        print(f"Saved LLM weights at end of epoch {epoch+1} to {epoch_save_path}")
+        torch.save(model.llm.state_dict(), save_path)
+        print(f"Saved LLM weights to {save_path}")
         torch.cuda.empty_cache()
         validate(model, val_loader, tokenizer, epoch, iteration, device, max_length)
         model.llm.model.train()
