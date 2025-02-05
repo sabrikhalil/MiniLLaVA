@@ -1,13 +1,13 @@
 ## MiniLLaVA
 
-MiniLLaVA is a minimal Vision-Language Model prototype inspired by LLaVA. It integrates a vision encoder and a language model by projecting vision embeddings into the language space before feeding them to the language model. This repository serves as a starting point for experiments in vision-language alignment.
+MiniLLaVA is a minimal Vision-Language Model prototype inspired by LLaVA. It integrates a CLIP-based vision encoder and a φ‑1.5 language model by projecting vision embeddings into the language space before feeding them to the language model. This repository serves as a starting point for experiments in vision-language alignment.
 
-## Features
+## Architecture Implemented
 
-- **Vision Encoder:** Uses a lightweight model (e.g., a SigLIP-based encoder) to extract image features.
-- **Language Encoder:** Incorporates a small language model (e.g., DistilBERT) to process text.
-- **Projection Module:** Projects vision embeddings into the language model’s token space.
-- **Modular Structure:** Easily extendable for further experimentation (e.g., fine-tuning on small datasets).
+**Vision Encoder:** Uses [CLIP](https://github.com/openai/CLIP) to extract image features.
+**Language Model:** Incorporates the [φ‑1.5](https://huggingface.co/microsoft/phi-1_5) model for text generation.
+**Projection Module:** Projects CLIP image embeddings into the φ‑1.5 language model’s token space, allowing the image features to condition text generation.
+**Modular Structure:** Easily extendable for further experimentation (e.g., fine-tuning on custom vision-language datasets).
 
 ## Installation
 
@@ -16,3 +16,14 @@ MiniLLaVA is a minimal Vision-Language Model prototype inspired by LLaVA. It int
    ```bash
    git clone https://github.com/<your-username>/MiniLLaVA.git
    cd MiniLLaVA
+
+2. **Install dependecies:**
+   ```bash
+   pip install -r requirements.txt
+
+3. **Download Dataset:**
+   ```bash
+   python src/data/download_dataset.py
+4. **Start training:**
+   ```bash
+     python src/training/train.py
