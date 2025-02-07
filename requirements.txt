@@ -3,3 +3,5 @@ transformers>=4.0.0
 numpy
 opencv-python
 tqdm
+peft 
+wandb
