@@ -43,11 +43,21 @@ def load_model():
     MODEL.llm.model = get_peft_model(MODEL.llm.model, lora_config)
     
     # Load the trained LLM checkpoint.
-    checkpoint_path = os.path.join(BASE_DIR, "../../saved_models/llm_epoch3_iter.pth")
+    checkpoint_path = os.path.join(BASE_DIR, "../../saved_models/checkpoint_epoch10.pth")
     if os.path.exists(checkpoint_path):
         print(f"[INFO] Loading checkpoint from {checkpoint_path}")
         checkpoint = torch.load(checkpoint_path, map_location=device)
-        MODEL.llm.load_state_dict(checkpoint)
+        # Load LLM weights
+        if "llm_state_dict" in checkpoint:
+            MODEL.llm.load_state_dict(checkpoint["llm_state_dict"])
+        else:
+            print("[WARNING] 'llm_state_dict' not found in the checkpoint.")
+        
+        # Load projector weights
+        if "projector_state_dict" in checkpoint:
+            MODEL.projection.load_state_dict(checkpoint["projector_state_dict"])
+        else:
+            print("[WARNING] 'projector_state_dict' not found in the checkpoint.")
     else:
         print(f"[WARNING] Checkpoint not found at {checkpoint_path}. Using randomly initialized model.")
     
