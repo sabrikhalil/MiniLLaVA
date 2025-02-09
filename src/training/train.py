@@ -24,11 +24,12 @@ def get_train_val_datasets(train_ratio=0.9, max_samples=10000, json_file=None, i
     print(f"[train_llm] Dataset split: {train_size} train samples, {val_size} validation samples.")
     return random_split(dataset, [train_size, val_size])
 
-def validate(model, val_loader, tokenizer, device, max_length):
+def validate(model, val_loader, tokenizer, epoch, iteration, device, max_length):
     """
     For validation, generate text using the current projector and log the results.
     """
     model.llm.model.eval()
+    print(f"\n[Validation @ epoch {epoch}, iteration {iteration}]")
     for batch in val_loader:
         if len(batch) < 4:
             continue
@@ -56,10 +57,13 @@ def validate(model, val_loader, tokenizer, device, max_length):
                 "val_prompt": prompt_text,
                 "val_ground_truth": answers[i].strip(),
                 "val_generated": generated_text,
-                "image_name": os.path.basename(image_paths[i])
+                "image_name": os.path.basename(image_paths[i]),
+                "epoch": epoch,
+                "iteration": iteration,
             })
         break
     model.llm.model.train()
+
 
 #############################################
 # Main Training Function (with Resume Support)
