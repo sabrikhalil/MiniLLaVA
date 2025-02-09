@@ -48,13 +48,6 @@ def main():
             print("[WARNING] 'projector_state_dict' not found in the checkpoint.")
     else:
         print(f"[WARNING] Checkpoint not found at {checkpoint_path}. Using randomly initialized model.")
-    
-    pretrained_projector_path = "././saved_models/projector_iter_102300_epoch31.pth"
-    if os.path.exists(pretrained_projector_path):
-        print(f"[INFO] Loading pretrained projector from {pretrained_projector_path}")
-        model.projection.load_state_dict(torch.load(pretrained_projector_path, map_location=device))
-    else:
-        print("[WARNING] Pretrained projector not found. Using default projector weights.")
 
     # Ensure the tokenizer has a pad token.
     tokenizer = model.llm.tokenizer
