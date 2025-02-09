@@ -61,13 +61,6 @@ def load_model():
     else:
         print(f"[WARNING] Checkpoint not found at {checkpoint_path}. Using randomly initialized model.")
     
-    # Load pretrained projector checkpoint.
-    pretrained_projector_path = os.path.join(BASE_DIR, "../../saved_models/projector_iter_102300_epoch31.pth")
-    if os.path.exists(pretrained_projector_path):
-        print(f"[INFO] Loading pretrained projector from {pretrained_projector_path}")
-        MODEL.projection.load_state_dict(torch.load(pretrained_projector_path, map_location=device))
-    else:
-        print("[WARNING] Pretrained projector not found. Using default projector weights.")
     
     TOKENIZER = MODEL.llm.tokenizer
     if TOKENIZER.pad_token is None:
