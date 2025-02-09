@@ -34,6 +34,7 @@ def main():
     checkpoint_path = "././saved_models/checkpoint_epoch10.pth"
     if os.path.exists(checkpoint_path):
         print(f"[INFO] Loading checkpoint from {checkpoint_path}")
+        checkpoint = torch.load(checkpoint_path, map_location=device)
         # Load LLM weights
         if "llm_state_dict" in checkpoint:
             model.llm.load_state_dict(checkpoint["llm_state_dict"])
