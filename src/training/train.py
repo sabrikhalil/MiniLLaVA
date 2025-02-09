@@ -103,7 +103,8 @@ def train_llm():
     pretrained_projector_path = "saved_models/projector_iter_102300_epoch31.pth"
     if os.path.exists(pretrained_projector_path):
         print(f"[train_llm] Loading pre-trained projector from {pretrained_projector_path}")
-        model.projection.load_state_dict(torch.load(pretrained_projector_path, map_location=device))
+        checkpoint = torch.load(pretrained_projector_path, map_location=device)
+        model.projection.load_state_dict(checkpoint["projector_state_dict"])
     else:
         print("[train_llm] Pre-trained projector not found. Proceeding without loading.")
 
