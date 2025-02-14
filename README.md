@@ -1,14 +1,16 @@
 ## MiniLLaVA
 
-MiniLLaVA is a minimal Vision-Language Model prototype inspired by LLaVA. It integrates a CLIP-based vision encoder and a φ‑1.5 language model by projecting vision embeddings into the language space before feeding them to the language model. This repository serves as a starting point for experiments in vision-language alignment.
+MiniLLaVA is a minimal Vision-Language Model prototype inspired by LLaVA. It integrates a CLIP-based vision encoder and Phi‑1.5 language model by projecting vision embeddings into the language space before feeding them to the language model. This repository serves as a starting point for experiments in vision-language alignment.
+
+![WhatsApp Image 2025-02-11 at 13 45 55_340834c6](https://github.com/user-attachments/assets/92c185a7-54bf-4a48-8477-7473728afce7)
 
 ## Architecture Implemented
 
 **Vision Encoder:** Uses [CLIP](https://github.com/openai/CLIP) to extract image features.
 
-**Language Model:** Incorporates the [φ‑1.5](https://huggingface.co/microsoft/phi-1_5) model for text generation.
+**Language Model:** Incorporates the [Phi‑1.5](https://huggingface.co/microsoft/phi-1_5) model for text generation.
 
-**Projection Module:** Projects CLIP image embeddings into the φ‑1.5 language model’s token space, allowing the image features to condition text generation.
+**Projection Module:** Projects CLIP image embeddings into the Phi‑1.5 language model’s token space, allowing the image features to condition text generation.
 
 **Modular Structure:** Easily extendable for further experimentation (e.g., fine-tuning on custom vision-language datasets).
 
