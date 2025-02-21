@@ -19,7 +19,7 @@ MiniLLaVA is a minimal Vision-Language Model prototype inspired by LLaVA. It int
 1. **Clone the repository:**
 
    ```bash
-   git clone https://github.com/<your-username>/MiniLLaVA.git
+   git clone https://github.com/sabrikhalil/MiniLLaVA.git
    cd MiniLLaVA
 
 2. **Install dependecies:**
